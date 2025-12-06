@@ -36,8 +36,8 @@ class Airport(models.Model):
 
 
 class Route(models.Model):
-    source = models.ForeignKey(Airplane, on_delete=models.CASCADE, related_name="routes")
-    destination = models.ForeignKey(Airplane, on_delete=models.CASCADE, related_name="routes")
+    source = models.ForeignKey(Airplane, on_delete=models.CASCADE, related_name="departures")
+    destination = models.ForeignKey(Airplane, on_delete=models.CASCADE, related_name="arrivals")
     distance = models.IntegerField()
 
     def __str__(self):
@@ -80,7 +80,7 @@ class Order(models.Model):
                              related_name="orders")
 
     class Meta:
-        ordering = ["created_at"]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return str(self.created_at)
