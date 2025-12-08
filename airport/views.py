@@ -1,20 +1,25 @@
 import datetime
+from zoneinfo import available_timezones
 
 from django.db import transaction
 from django.db.models import Q, Count, F
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from airport.models import (Airport, Order, Flight, Crew, Airplane, Route,
-                            Country, City, AirplaneType)
+                            Country, City, AirplaneType, Ticket)
+from airport.permissions import IsAdminOrIfAuthenticatedReadOnly
+
 from airport.serializers import (AirportListSerializer, OrderSerializer, FlightListSerializer,
                                  CrewSerializer, AirplaneSerializer, RouteListSerializer,
                                  AirplaneTypeSerializer, CountrySerializer, CityListSerializer,
                                  CityCreateSerializer, AirportCreateSerializer, RouteCreateSerializer,
                                  AirplaneCreateSerializer, FlightCreateSerializer, TicketSerializer,
                                  CityDetailSerializer, AirportDetailSerializer, RouteDetailSerializer,
-                                 FlightDetailSerializer
+                                 FlightDetailSerializer, TicketCreateSerializer
                                  )
 
 
@@ -22,6 +27,8 @@ from airport.serializers import (AirportListSerializer, OrderSerializer, FlightL
 class CountryViewSet(viewsets.ModelViewSet):
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
     search_fields = ('name', "code")
     ordering_fields = ('name', "code")
 
@@ -39,6 +46,8 @@ class CityViewSet(viewsets.ModelViewSet):
 
     search_fields = ('name', "country__name")
     ordering_fields = ('name', "country__name")
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+    authentication_classes = [JWTAuthentication]
 
 
 class AirportViewSet(viewsets.ModelViewSet):
@@ -67,6 +76,8 @@ class AirportViewSet(viewsets.ModelViewSet):
 
     search_fields = ('name', "code", "city__name")
     ordering_fields = ('name', "code")
+    authentication_classes = [JWTAuthentication]
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
 
 class RouteViewSet(viewsets.ModelViewSet):
@@ -98,22 +109,30 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     search_fields = ("source__code", "destination__code")
     ordering_fields = ("distance", "source__code")
+    authentication_classes = [JWTAuthentication]
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
 
 # Airplane
 class AirplaneTypeViewSet(viewsets.ModelViewSet):
     queryset = AirplaneType.objects.all()
     serializer_class = AirplaneTypeSerializer
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+    authentication_classes = [JWTAuthentication]
 
 
 class CrewViewSet(viewsets.ModelViewSet):
     queryset = Crew.objects.all()
     serializer_class = CrewSerializer
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+    authentication_classes = [JWTAuthentication]
 
 
 class AirplaneViewSet(viewsets.ModelViewSet):
     queryset = Airplane.objects.select_related("airplane_type").all()
     serializer_class = AirplaneSerializer
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+    authentication_classes = [JWTAuthentication]
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
@@ -128,26 +147,29 @@ class AirplaneViewSet(viewsets.ModelViewSet):
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = [JWTAuthentication]
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user).prefetch_related("tickets__flight")
+        return Order.objects.filter(user=self.request.user).prefetch_related(
+            "tickets__flight__route__source",
+            "tickets__flight__route__destination",
+        )
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        tickets_data = request.data.get("tickets")
+        tickets_data = request.data.get("tickets", [])
         if not tickets_data:
             return Response({"tickets": ["This field is required"]},
                             status=status.HTTP_400_BAD_REQUEST)
 
         order = Order.objects.create(user=request.user)
-        for ticket_data in tickets_data:
 
-            serializer = TicketSerializer(data=ticket_data)
+        for ticket_data in tickets_data:
+            serializer = TicketCreateSerializer(data=ticket_data)
             serializer.is_valid(raise_exception=True)
             serializer.save(order=order)
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
-
 
     @action(detail=True, methods=["post"])
     def complete(self, request, *args, **kwargs):
@@ -157,6 +179,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         order.complete()
         return Response({"status": "completed"})
+
     @action(detail=True, methods=["post"])
     def cancel(self, request, *args, **kwargs):
         order = self.get_object()
@@ -166,11 +189,36 @@ class OrderViewSet(viewsets.ModelViewSet):
         order.cancel()
         return Response({"status": "cancelled"})
 
+
 # Flight
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.select_related("route__source__city__country",
                                              "route__destination__city__country",
                                              "airplane__airplane_type").prefetch_related("crew").all()
+    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+    authentication_classes = [JWTAuthentication]
+
+    @action(detail=True, methods=["get"])
+    def seats(self, request, pk=None):
+        flight = self.get_object()
+        airplane = flight.airplane
+
+        LAYOUT_6 = ["A", "B", "C", None, "D", "E", "F"]
+        layout = LAYOUT_6
+        taken = [f"{t.row}{t.seat}" for t in flight.tickets.all()]
+        data = {
+            "flight_id": flight.id,
+            "airplane": str(airplane),
+            "rows": airplane.rows,
+            "seats_in_row": airplane.seats_in_row,
+            "layout": layout,
+            "taken": taken,
+            "available": airplane.capacity - len(taken),
+            "total": airplane.capacity,
+        }
+
+        return Response(data)
+
 
     def get_queryset(self):
         queryset = super().get_queryset()

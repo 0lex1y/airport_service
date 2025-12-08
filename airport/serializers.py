@@ -257,13 +257,25 @@ class TicketCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         flight = attrs.get("flight")
         airplane = flight.airplane
+        row = attrs.get("row")
+        seat = attrs.get("seat").upper()
 
-        if not (1 <= attrs["row"] <= airplane.rows):
+            # Check range rows
+        if not (1 <= row <= airplane.rows):
             raise serializers.ValidationError({"row": f"Row must be between 1 and {airplane.rows}"})
+        # Check letter seats
+        max_seats = airplane.seats_in_row
+        if not ("A" <= seat <= chr(ord("A") + max_seats - 1)):
+            raise serializers.ValidationError({
+                "seat": f"Seat must be from A to {chr(ord("A") + max_seats - 1)}"
+            })
+        # Check taken place
         if Ticket.objects.filter(
-                airplane=airplane,
+                row=row,
+                seat__iexact=seat,
                 flight=flight).exists():
-            raise serializers.ValidationError({"flight": f"Flight {flight} already exists"})
+            raise serializers.ValidationError({"seat": f"This seat is already taken"})
+        attrs["seat"] = seat
         return attrs
 
 

@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from airport.views import (OrderViewSet, FlightViewSet, AirplaneViewSet,
                            CrewViewSet, RouteViewSet, AirplaneTypeViewSet,
@@ -26,5 +27,5 @@ router.register("flights", FlightViewSet)
 urlpatterns = [
     path("", include(router.urls)),
 ]
-
+router.authentication_classes = [JWTAuthentication]
 app_name = "airport"
