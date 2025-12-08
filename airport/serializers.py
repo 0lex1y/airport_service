@@ -1,8 +1,8 @@
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
 from rest_framework.relations import PrimaryKeyRelatedField
 
-from airport.models import AirplaneType, Airplane, Crew, Airport, Route, Flight, Ticket, Order, Country, City
+from airport.models import (AirplaneType, Airplane, Crew, Airport, Route,
+                            Flight, Ticket, Order, Country, City)
 
 
 class CountrySerializer(serializers.ModelSerializer):
@@ -12,15 +12,23 @@ class CountrySerializer(serializers.ModelSerializer):
         read_only_fields = ("id",)
 
 
-# For reading
-class CitySerializer(serializers.ModelSerializer):
-    country = CountrySerializer(read_only=True)
+# For list reading
+class CityListSerializer(serializers.ModelSerializer):
+    country = serializers.CharField(source="country.name", read_only=True)
 
     class Meta:
         model = City
         fields = ("id", "name", "country")
         read_only_fields = ("id",)
 
+# For retrieve reading
+class CityDetailSerializer(serializers.ModelSerializer):
+    country = CountrySerializer(read_only=True)
+
+    class Meta:
+        model = City
+        fields = ("id", "name", "country")
+        read_only_fields = ("id",)
 
 # For City post
 class CityCreateSerializer(serializers.ModelSerializer):
@@ -38,9 +46,20 @@ class CityCreateSerializer(serializers.ModelSerializer):
         return attrs
 
 
-# For read Airport
-class AirportSerializer(serializers.ModelSerializer):
-    city = CitySerializer(many=False, read_only=True)
+# For list reading
+class AirportListSerializer(serializers.ModelSerializer):
+    city = serializers.CharField(source="city.name", read_only=True)
+    country = serializers.CharField(source="country.name", read_only=True)
+
+    class Meta:
+        model = Airport
+        fields = ("id", "code", "name", "city", "country")
+        read_only_fields = ("id",)
+
+# For retrieve reading
+class AirportDetailSerializer(serializers.ModelSerializer):
+    city = CityListSerializer(many=False, read_only=True)
+    country = CountrySerializer(many=False, read_only=True)
 
     class Meta:
         model = Airport
@@ -66,10 +85,26 @@ class AirportCreateSerializer(serializers.ModelSerializer):
         return value
 
 
-# For Route reading
-class RouteSerializer(serializers.ModelSerializer):
-    source = AirportSerializer(read_only=True)
-    destination = AirportSerializer(read_only=True)
+# For Route list reading
+class RouteListSerializer(serializers.ModelSerializer):
+    source = serializers.CharField(source="source.name", read_only=True)
+    destination = serializers.CharField(source="destination.name", read_only=True)
+    source_code = serializers.CharField(read_only=True, source="source.code")
+    destination_code = serializers.CharField(read_only=True, source="destination.code")
+
+    class Meta:
+        model = Route
+        fields = ("id",
+                  "source", "source_code",
+                  "destination", "destination_code",
+                  "distance"
+                  )
+        read_only_fields = ("id",)
+
+# For Route list reading
+class RouteDetailSerializer(serializers.ModelSerializer):
+    source = AirportDetailSerializer(read_only=True)
+    destination = AirportDetailSerializer(read_only=True)
     source_code = serializers.CharField(read_only=True, source="source.code")
     destination_code = serializers.CharField(read_only=True, source="destination.code")
 
@@ -93,17 +128,6 @@ class RouteCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = ("id", "source", "destination", "distance")
-
-        def validate(self, attrs):
-            source = attrs.get("source_id")
-            destination = attrs.get("destination_id")
-            if source == destination:
-                raise serializers.ValidationError("Source and destination must be different")
-            if Route.objects.filter(source_id=source,
-                                    destination_id=destination).exists():
-                raise ValidationError("Source and destination must be different")
-            return attrs
-
 
 # Airplane
 
@@ -135,9 +159,8 @@ class AirplaneSerializer(serializers.ModelSerializer):
 
 # For airplane post
 class AirplaneCreateSerializer(serializers.ModelSerializer):
-    airplane_type_id = serializers.PrimaryKeyRelatedField(
-        queryset=AirplaneType.objects.all(),
-        error_messages={"does_not_exist": "Airplane type does not exist"}
+    airplane_type = serializers.PrimaryKeyRelatedField(
+        queryset=AirplaneType.objects.all()
     )
 
     class Meta:
@@ -153,9 +176,23 @@ class AirplaneCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Seats must be greater than 1")
         return attrs
 
-# For Flight read
-class FlightSerializer(serializers.ModelSerializer):
-    route = RouteSerializer(read_only=True)
+
+# For Flight list reading
+class FlightListSerializer(serializers.ModelSerializer):
+    route_city = serializers.CharField(read_only=True, source="route.source.city.name")
+    destination_city = serializers.CharField(read_only=True, source="route.destination.city.name")
+    airplane = serializers.CharField(read_only=True, source="airplane.name")
+    crew = serializers.CharField(read_only=True, source="crew.full_name")
+    available_seats = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Flight
+        fields = ("id", "route_city", "destination_city", "airplane", "arrival_time", "departure_time",
+                  "crew", "available_seats")
+
+# For Flight detail reading
+class FlightDetailSerializer(serializers.ModelSerializer):
+    route = RouteDetailSerializer(read_only=True)
     airplane = AirplaneSerializer(read_only=True)
     crew = CrewSerializer(read_only=True, many=True)
     available_seats = serializers.IntegerField(read_only=True)
@@ -164,7 +201,6 @@ class FlightSerializer(serializers.ModelSerializer):
         model = Flight
         fields = ("id", "route", "airplane", "arrival_time", "departure_time",
                   "crew", "available_seats")
-
 
 # For Flight post
 class FlightCreateSerializer(serializers.ModelSerializer):
@@ -200,6 +236,7 @@ class FlightCreateSerializer(serializers.ModelSerializer):
             instance.crew.set(crew)
         return instance
 
+
 # Orders
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -210,9 +247,31 @@ class TicketSerializer(serializers.ModelSerializer):
         fields = ("id", "flight", "row", "seat", "order")
 
 
+class TicketCreateSerializer(serializers.ModelSerializer):
+    flight = serializers.PrimaryKeyRelatedField(queryset=Flight.objects.all())
+
+    class Meta:
+        model = Ticket
+        fields = ("flight", "row", "seat")
+
+    def validate(self, attrs):
+        flight = attrs.get("flight")
+        airplane = flight.airplane
+
+        if not (1 <= attrs["row"] <= airplane.rows):
+            raise serializers.ValidationError({"row": f"Row must be between 1 and {airplane.rows}"})
+        if Ticket.objects.filter(
+                airplane=airplane,
+                flight=flight).exists():
+            raise serializers.ValidationError({"flight": f"Flight {flight} already exists"})
+        return attrs
+
+
+
 class OrderSerializer(serializers.ModelSerializer):
-    ticket = TicketSerializer(many=True, read_only=True)
+    tickets = TicketSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
-        fields = ("id", "ticket", "created_at")
+        fields = ("id", "created_at", "status", "tickets")
+        read_only_fields = ("id", "created_at", "status")

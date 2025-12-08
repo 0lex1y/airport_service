@@ -2,10 +2,11 @@ from django.db import models, transaction
 from rest_framework.exceptions import ValidationError
 
 from airport_service import settings
-
-POSITION_CHOICES = ["pilot", "co-pilot", "mechanic"]
-
-
+POSITIONS  = (
+    ("pilot", "Pilot"),
+    ("co-pilot", "Co-Pilot"),
+    ("mechanic", "Mechanic"),
+)
 # Airport
 
 class Country(models.Model):
@@ -64,15 +65,23 @@ class Route(models.Model):
         return f"{self.source.name} -> {self.destination.name}"
 
     def clean(self):
-        super().clean()
-        if self.source.name == self.destination.name:
+        if self.source == self.destination:
             raise ValidationError("Source and destination must be different")
+        duplicates = Route.objects.filter(source=self.source, destination=self.destination)
+        if self.pk:
+            duplicates = duplicates.exclude(pk=self.pk)
+        if duplicates.exists():
+            raise ValidationError("Duplicate Route")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 # Airplane
 
 class AirplaneType(models.Model):
-    name = models.CharField(max_length=100, unique=True, help_text="jet or superjet etc.")
+    name = models.CharField(max_length=100, unique=True)
 
     class Meta:
         verbose_name = "Airplane Type"
@@ -121,7 +130,7 @@ class Airplane(models.Model):
 class Crew(models.Model):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
-    position = models.CharField(max_length=100, choices=POSITION_CHOICES, blank=True)
+    position = models.CharField(max_length=100, choices=POSITIONS, blank=True)
 
     class Meta:
         verbose_name = "Crew"
@@ -169,36 +178,33 @@ class Flight(models.Model):
     def clean(self):
         if self.arrival_time <= self.departure_time:
             raise ValidationError("Arrival time must be later than departure time")
+
         if self.pk:
             conflict = Flight.objects.filter(
                 airplane=self.airplane,
                 departure_time__lt=self.departure_time,
                 arrival_time__gt=self.arrival_time
             ).exclude(pk=self.pk)
-        else:
-            conflict = Flight.objects.filter(
-                airplane=self.airplane,
-                departure_time__lt=self.departure_time,
-                arrival_time__gt=self.arrival_time
-            )
-        if conflict.exists():
-            raise ValidationError("Flight already exists")
+            if conflict.exists():
+                raise ValidationError("Flight already exists")
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        super.save(*args, **kwargs)
+        super().save()
 
 
 class Order(models.Model):
     class Status(models.TextChoices):
-        PENDING = "pending", ("Pending",)
-        COMPLETED = "completed", ("Completed",)
-        CANCELED = "canceled", ("Canceled",)
+        PENDING = "pending","Pending"
+        COMPLETED = "completed", "Completed"
+        CANCELED = "canceled", "Canceled"
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.CASCADE,
+                             null=True,
+                             blank=True,
                              related_name="orders")
     status = models.CharField(
         max_length=10,
@@ -261,20 +267,3 @@ class Ticket(models.Model):
         self.seat = self.seat.upper()
         self.full_clean()
         super().save(*args, **kwargs)
-
-    @staticmethod
-    def validate_ticket(row, seat, airplane, errors_to_raise):
-        for ticket_attr_value, ticket_attr_name, airplane_attr_name in [
-            (row, "row", "rows"),
-            (seat, "seat", "seats_in_row"),
-        ]:
-            count_attrs = getattr(airplane, airplane_attr_name)
-            if not (1 <= ticket_attr_value <= count_attrs):
-                raise errors_to_raise(
-                    {
-                        ticket_attr_name: f"{ticket_attr_name} "
-                                          f"number must be in valid range: "
-                                          f"(1, {airplane_attr_name}): "
-                                          f"(1, {count_attrs})"
-                    }
-                )
