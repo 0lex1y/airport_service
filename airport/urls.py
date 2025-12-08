@@ -2,9 +2,17 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from airport.views import (OrderViewSet, FlightViewSet, AirplaneViewSet,
-                           CrewViewSet, RouteViewSet, AirplaneTypeViewSet,
-                           CountryViewSet, CityViewSet, AirportViewSet)
+from airport.views import (
+    OrderViewSet,
+    FlightViewSet,
+    AirplaneViewSet,
+    CrewViewSet,
+    RouteViewSet,
+    AirplaneTypeViewSet,
+    CountryViewSet,
+    CityViewSet,
+    AirportViewSet,
+)
 
 router = DefaultRouter()
 # Airport

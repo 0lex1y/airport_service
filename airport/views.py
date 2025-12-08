@@ -1,36 +1,56 @@
 import datetime
-from zoneinfo import available_timezones
+
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from django.db import transaction
 from django.db.models import Q, Count, F
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from airport.models import (Airport, Order, Flight, Crew, Airplane, Route,
-                            Country, City, AirplaneType, Ticket)
-from airport.permissions import IsAdminOrIfAuthenticatedReadOnly
+from airport.models import (
+    Airport,
+    Order,
+    Flight,
+    Crew,
+    Airplane,
+    Route,
+    Country,
+    City,
+    AirplaneType,
+)
 
-from airport.serializers import (AirportListSerializer, OrderSerializer, FlightListSerializer,
-                                 CrewSerializer, AirplaneSerializer, RouteListSerializer,
-                                 AirplaneTypeSerializer, CountrySerializer, CityListSerializer,
-                                 CityCreateSerializer, AirportCreateSerializer, RouteCreateSerializer,
-                                 AirplaneCreateSerializer, FlightCreateSerializer, TicketSerializer,
-                                 CityDetailSerializer, AirportDetailSerializer, RouteDetailSerializer,
-                                 FlightDetailSerializer, TicketCreateSerializer
-                                 )
+from airport.serializers import (
+    AirportListSerializer,
+    OrderSerializer,
+    FlightListSerializer,
+    CrewSerializer,
+    AirplaneSerializer,
+    RouteListSerializer,
+    AirplaneTypeSerializer,
+    CountrySerializer,
+    CityListSerializer,
+    CityCreateSerializer,
+    AirportCreateSerializer,
+    RouteCreateSerializer,
+    AirplaneCreateSerializer,
+    FlightCreateSerializer,
+    CityDetailSerializer,
+    AirportDetailSerializer,
+    RouteDetailSerializer,
+    FlightDetailSerializer,
+    TicketCreateSerializer,
+)
 
 
 # Airport
 class CountryViewSet(viewsets.ModelViewSet):
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
-    authentication_classes = [JWTAuthentication]
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
-    search_fields = ('name', "code")
-    ordering_fields = ('name', "code")
+    search_fields = ("name", "code")
+    ordering_fields = ("name", "code")
 
 
 class CityViewSet(viewsets.ModelViewSet):
@@ -44,12 +64,35 @@ class CityViewSet(viewsets.ModelViewSet):
         else:
             return CityCreateSerializer
 
-    search_fields = ('name', "country__name")
-    ordering_fields = ('name', "country__name")
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
-    authentication_classes = [JWTAuthentication]
+    search_fields = ("name", "country__name")
+    ordering_fields = ("name", "country__name")
 
 
+@extend_schema(description="Schema searching airports",
+               parameters=[
+                   OpenApiParameter(
+                       "code",
+                       type=OpenApiTypes.STR,
+                       location=OpenApiParameter.QUERY,
+                       description="Filter by airport code",
+                       required=False,
+                   ),
+                   OpenApiParameter(
+                       "city",
+                       type=OpenApiTypes.STR,
+                       location=OpenApiParameter.QUERY,
+                       description="Filter by airport city",
+                       required=False,
+                   ),
+                   OpenApiParameter(
+                       "country",
+                       type=OpenApiTypes.STR,
+                       location=OpenApiParameter.QUERY,
+                       description="Filter by airport country",
+                       required=False,
+                   ),
+               ]
+               )
 class AirportViewSet(viewsets.ModelViewSet):
     queryset = Airport.objects.select_related("city__country").all()
 
@@ -74,15 +117,39 @@ class AirportViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(country__name__icontains=country)
         return queryset
 
-    search_fields = ('name', "code", "city__name")
-    ordering_fields = ('name', "code")
-    authentication_classes = [JWTAuthentication]
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+    search_fields = ("name", "code", "city__name")
+    ordering_fields = ("name", "code")
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "source",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by airport source",
+            required=False,
+        ),
+        OpenApiParameter(
+            "destination",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by airport destination",
+            required=False,
+        ),
+        OpenApiParameter(
+            "city",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by airport city",
+            required=False,
+        ),
+    ]
+)
 class RouteViewSet(viewsets.ModelViewSet):
-    queryset = Route.objects.select_related("source__city__country",
-                                            "destination__city__country").all()
+    queryset = Route.objects.select_related(
+        "source__city__country", "destination__city__country"
+    ).all()
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -95,8 +162,9 @@ class RouteViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(destination__code__iexact=destination)
         if city:
             queryset = queryset.filter(
-                Q(source__city__name__icontains=city) |
-                Q(destination__city__name__icontains=city))
+                Q(source__city__name__icontains=city)
+                | Q(destination__city__name__icontains=city)
+            )
         return queryset
 
     def get_serializer_class(self):
@@ -109,30 +177,25 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     search_fields = ("source__code", "destination__code")
     ordering_fields = ("distance", "source__code")
-    authentication_classes = [JWTAuthentication]
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
+
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 # Airplane
 class AirplaneTypeViewSet(viewsets.ModelViewSet):
     queryset = AirplaneType.objects.all()
     serializer_class = AirplaneTypeSerializer
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
-    authentication_classes = [JWTAuthentication]
 
 
 class CrewViewSet(viewsets.ModelViewSet):
     queryset = Crew.objects.all()
     serializer_class = CrewSerializer
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
-    authentication_classes = [JWTAuthentication]
 
 
 class AirplaneViewSet(viewsets.ModelViewSet):
     queryset = Airplane.objects.select_related("airplane_type").all()
     serializer_class = AirplaneSerializer
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
-    authentication_classes = [JWTAuthentication]
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
@@ -140,28 +203,64 @@ class AirplaneViewSet(viewsets.ModelViewSet):
         else:
             return AirplaneCreateSerializer
 
-    search_fields = ('airplane_type__name', "name")
-    ordering_fields = ('capacity', "name")
+    search_fields = ("airplane_type__name", "name")
+    ordering_fields = ("capacity", "name")
 
+    @action(
+        methods=["post"],
+        detail=True,
+        url_path="upload-image",
+        permission_classes=[IsAdminUser],
+    )
+    def upload_image(self, request, pk=None):
+        """Endpoint for uploading image airplane"""
+        airplane = self.get_object()
+        serializer = self.get_serializer(airplane, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "status",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by ordering status",
+            required=False,
+        )
+    ]
+)
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = (IsAuthenticated,)
-    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, ]
+    filter_backends = (filters.OrderingFilter, filters.SearchFilter,)
+    search_fields = ("id",)
+    ordering_fields = ("created", "status")
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user).prefetch_related(
-            "tickets__flight__route__source",
-            "tickets__flight__route__destination",
+        queryset = Order.objects.filter(user=self.request.user).prefetch_related(
+            "tickets__flight__route__source__city__country",
+            "tickets__flight__route__destination__city__country",
+            "tickets__flight__airplane",
         )
+        """Filter by status orders"""
+        status = self.request.query_params.get("status")
+        if status:
+            if status.lower() in ("pending", "completed", "cancelled"):
+                queryset = queryset.filter(status=status.lower())
+        return queryset.order_by("-created_at")
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         tickets_data = request.data.get("tickets", [])
         if not tickets_data:
-            return Response({"tickets": ["This field is required"]},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"tickets": ["This field is required"]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         order = Order.objects.create(user=request.user)
 
@@ -175,8 +274,9 @@ class OrderViewSet(viewsets.ModelViewSet):
     def complete(self, request, *args, **kwargs):
         order = self.get_object()
         if order.status != "pending":
-            return Response({"error": "Order already completed"},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Order already completed"}, status=status.HTTP_400_BAD_REQUEST
+            )
         order.complete()
         return Response({"status": "completed"})
 
@@ -184,27 +284,57 @@ class OrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, *args, **kwargs):
         order = self.get_object()
         if order.status == "completed":
-            return Response({"error": "Cannot  cancel completed order"},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Cannot  cancel completed order"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         order.cancel()
         return Response({"status": "cancelled"})
 
 
 # Flight
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="date",
+            location=OpenApiParameter.QUERY,
+            type=OpenApiTypes.DATE,
+            description="Filter by date flight",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="source",
+            location=OpenApiParameter.QUERY,
+            type=OpenApiTypes.STR,
+            description="Filter by flight source",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="destination",
+            location=OpenApiParameter.QUERY,
+            type=OpenApiTypes.STR,
+            description="Filter by flight destination",
+            required=False,
+        )
+    ]
+)
 class FlightViewSet(viewsets.ModelViewSet):
-    queryset = Flight.objects.select_related("route__source__city__country",
-                                             "route__destination__city__country",
-                                             "airplane__airplane_type").prefetch_related("crew").all()
-    permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
-    authentication_classes = [JWTAuthentication]
+    queryset = (
+        Flight.objects.select_related(
+            "route__source__city__country",
+            "route__destination__city__country",
+            "airplane__airplane_type",
+        )
+        .prefetch_related("crew")
+        .all()
+    )
 
     @action(detail=True, methods=["get"])
     def seats(self, request, pk=None):
         flight = self.get_object()
         airplane = flight.airplane
 
-        LAYOUT_6 = ["A", "B", "C", None, "D", "E", "F"]
-        layout = LAYOUT_6
+        layout = ["A", "B", "C", None, "D", "E", "F"]
         taken = [f"{t.row}{t.seat}" for t in flight.tickets.all()]
         data = {
             "flight_id": flight.id,
@@ -219,15 +349,17 @@ class FlightViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
-
     def get_queryset(self):
         queryset = super().get_queryset()
         # Calculate available seats but only in pending or completed status
         queryset = queryset.annotate(
-            booked_seats=Count("tickets",
-                               filter=Q(tickets__order__status__in=["pending", "completed"]),
-                               distinct=True),
-            available_seats=F("airplane__rows") * F("airplane__seats_in_row") - F("booked_seats"),
+            booked_seats=Count(
+                "tickets",
+                filter=Q(tickets__order__status__in=["pending", "completed"]),
+                distinct=True,
+            ),
+            available_seats=F("airplane__rows") * F("airplane__seats_in_row")
+                            - F("booked_seats"),
         ).select_related("airplane", "airplane__airplane_type")
         # Filters
 

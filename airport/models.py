@@ -1,13 +1,19 @@
+import os
+import uuid
+
 from django.db import models, transaction
+from django.utils.text import slugify
 from rest_framework.exceptions import ValidationError
 
 from airport_service import settings
-POSITIONS  = (
+
+POSITIONS = (
     ("pilot", "Pilot"),
     ("co-pilot", "Co-Pilot"),
     ("mechanic", "Mechanic"),
 )
 # Airport
+
 
 class Country(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -23,7 +29,9 @@ class Country(models.Model):
 
 class City(models.Model):
     name = models.CharField(max_length=100)
-    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="cities")
+    country = models.ForeignKey(
+        Country, on_delete=models.CASCADE, related_name="cities"
+    )
 
     class Meta:
         verbose_name_plural = "cities"
@@ -37,8 +45,12 @@ class City(models.Model):
 class Airport(models.Model):
     code = models.CharField(max_length=10, unique=True, help_text="IATA or ISAO")
     name = models.CharField(max_length=100)
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="airports_city")
-    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="airports_country")
+    city = models.ForeignKey(
+        City, on_delete=models.CASCADE, related_name="airports_city"
+    )
+    country = models.ForeignKey(
+        Country, on_delete=models.CASCADE, related_name="airports_country"
+    )
 
     class Meta:
         verbose_name_plural = "Airports"
@@ -49,13 +61,15 @@ class Airport(models.Model):
 
 
 class Route(models.Model):
-    source = models.ForeignKey(Airport,
-                               on_delete=models.CASCADE,
-                               related_name="departures")
-    destination = models.ForeignKey(Airport,
-                                    on_delete=models.CASCADE,
-                                    related_name="arrivals")
-    distance = models.PositiveIntegerField(help_text="Distance traveled between source and destination")
+    source = models.ForeignKey(
+        Airport, on_delete=models.CASCADE, related_name="departures"
+    )
+    destination = models.ForeignKey(
+        Airport, on_delete=models.CASCADE, related_name="arrivals"
+    )
+    distance = models.PositiveIntegerField(
+        help_text="Distance traveled between source and destination"
+    )
 
     class Meta:
         verbose_name_plural = "Routes"
@@ -67,7 +81,9 @@ class Route(models.Model):
     def clean(self):
         if self.source == self.destination:
             raise ValidationError("Source and destination must be different")
-        duplicates = Route.objects.filter(source=self.source, destination=self.destination)
+        duplicates = Route.objects.filter(
+            source=self.source, destination=self.destination
+        )
         if self.pk:
             duplicates = duplicates.exclude(pk=self.pk)
         if duplicates.exists():
@@ -79,6 +95,7 @@ class Route(models.Model):
 
 
 # Airplane
+
 
 class AirplaneType(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -92,13 +109,21 @@ class AirplaneType(models.Model):
         return self.name
 
 
+def airplane_image_file_path(instance, filename):
+    _, extension = os.path.splitext(filename)
+    filename = f"{slugify(instance.title)}-{uuid.uuid4()}{extension}"
+
+    return os.path.join("uploads/movies/", filename)
+
+
 class Airplane(models.Model):
     name = models.CharField(max_length=100)
     rows = models.IntegerField()
     seats_in_row = models.IntegerField()
-    airplane_type = models.ForeignKey(AirplaneType,
-                                      on_delete=models.PROTECT,
-                                      related_name="airplanes")
+    airplane_type = models.ForeignKey(
+        AirplaneType, on_delete=models.PROTECT, related_name="airplanes"
+    )
+    image = models.ImageField(upload_to=airplane_image_file_path, null=True)
 
     class Meta:
         unique_together = ("name",)
@@ -148,13 +173,12 @@ class Crew(models.Model):
 
 # Flight
 
+
 class Flight(models.Model):
-    route = models.ForeignKey(Route,
-                              on_delete=models.CASCADE,
-                              related_name="flights")
-    airplane = models.ForeignKey(Airplane,
-                                 on_delete=models.CASCADE,
-                                 related_name="flights")
+    route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name="flights")
+    airplane = models.ForeignKey(
+        Airplane, on_delete=models.CASCADE, related_name="flights"
+    )
     crew = models.ManyToManyField(Crew, related_name="flights", blank=True)
     departure_time = models.DateTimeField()
     arrival_time = models.DateTimeField()
@@ -171,9 +195,11 @@ class Flight(models.Model):
         verbose_name_plural = "Flights"
 
     def __str__(self):
-        return (f"{self.airplane} | {self.route} |"
-                f"{self.departure_time.strftime('%d/%m/%Y %H:%M')} -> "
-                f"{self.arrival_time.strftime('%d/%m/%Y %H:%M')}")
+        return (
+            f"{self.airplane} | {self.route} |"
+            f"{self.departure_time.strftime('%d/%m/%Y %H:%M')} -> "
+            f"{self.arrival_time.strftime('%d/%m/%Y %H:%M')}"
+        )
 
     def clean(self):
         if self.arrival_time <= self.departure_time:
@@ -183,7 +209,7 @@ class Flight(models.Model):
             conflict = Flight.objects.filter(
                 airplane=self.airplane,
                 departure_time__lt=self.departure_time,
-                arrival_time__gt=self.arrival_time
+                arrival_time__gt=self.arrival_time,
             ).exclude(pk=self.pk)
             if conflict.exists():
                 raise ValidationError("Flight already exists")
@@ -195,21 +221,22 @@ class Flight(models.Model):
 
 class Order(models.Model):
     class Status(models.TextChoices):
-        PENDING = "pending","Pending"
+        PENDING = "pending", "Pending"
         COMPLETED = "completed", "Completed"
         CANCELED = "canceled", "Canceled"
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL,
-                             on_delete=models.CASCADE,
-                             null=True,
-                             blank=True,
-                             related_name="orders")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="orders",
+    )
     status = models.CharField(
-        max_length=10,
-        choices=Status.choices,
-        default=Status.PENDING)
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -231,12 +258,8 @@ class Order(models.Model):
 class Ticket(models.Model):
     row = models.IntegerField(help_text="Row number (1, 2, 3...)")
     seat = models.CharField(max_length=1, help_text="Seat letter (A, B, C, D, E, F)")
-    flight = models.ForeignKey(Flight,
-                               on_delete=models.CASCADE,
-                               related_name="tickets")
-    order = models.ForeignKey(Order,
-                              on_delete=models.CASCADE,
-                              related_name="tickets")
+    flight = models.ForeignKey(Flight, on_delete=models.CASCADE, related_name="tickets")
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="tickets")
 
     class Meta:
         unique_together = ("flight", "row", "seat")
@@ -256,11 +279,12 @@ class Ticket(models.Model):
             raise ValidationError({"seat": "Seat must be letter in (A-F)"})
         if self.pk is None:
             with transaction.atomic():
-                locked_flight = Flight.objects.select_for_update().get(pk=self.flight.pk)
+                locked_flight = Flight.objects.select_for_update().get(
+                    pk=self.flight.pk
+                )
                 if Ticket.objects.filter(
-                        flight=locked_flight,
-                        row=self.row,
-                        seat__iexact=self.seat).exists():
+                    flight=locked_flight, row=self.row, seat__iexact=self.seat
+                ).exists():
                     raise ValidationError("Ticket already exists")
 
     def save(self, *args, **kwargs):
