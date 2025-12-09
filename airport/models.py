@@ -43,7 +43,9 @@ class City(models.Model):
 
 
 class Airport(models.Model):
-    code = models.CharField(max_length=10, unique=True, help_text="IATA or ISAO")
+    code = models.CharField(
+        max_length=10, unique=True, help_text="IATA or ISAO"
+    )
     name = models.CharField(max_length=100)
     city = models.ForeignKey(
         City, on_delete=models.CASCADE, related_name="airports_city"
@@ -123,7 +125,9 @@ class Airplane(models.Model):
     airplane_type = models.ForeignKey(
         AirplaneType, on_delete=models.PROTECT, related_name="airplanes"
     )
-    image = models.ImageField(upload_to=airplane_image_file_path, null=True, blank=True)
+    image = models.ImageField(
+        upload_to=airplane_image_file_path, null=True, blank=True
+    )
 
     class Meta:
         unique_together = ("name",)
@@ -175,7 +179,9 @@ class Crew(models.Model):
 
 
 class Flight(models.Model):
-    route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name="flights")
+    route = models.ForeignKey(
+        Route, on_delete=models.CASCADE, related_name="flights"
+    )
     airplane = models.ForeignKey(
         Airplane, on_delete=models.CASCADE, related_name="flights"
     )
@@ -203,7 +209,9 @@ class Flight(models.Model):
 
     def clean(self):
         if self.arrival_time <= self.departure_time:
-            raise ValidationError("Arrival time must be later than departure time")
+            raise ValidationError(
+                "Arrival time must be later than departure time"
+            )
 
         if self.pk:
             conflict = Flight.objects.filter(
@@ -257,9 +265,15 @@ class Order(models.Model):
 
 class Ticket(models.Model):
     row = models.IntegerField(help_text="Row number (1, 2, 3...)")
-    seat = models.CharField(max_length=1, help_text="Seat letter (A, B, C, D, E, F)")
-    flight = models.ForeignKey(Flight, on_delete=models.CASCADE, related_name="tickets")
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="tickets")
+    seat = models.CharField(
+        max_length=1, help_text="Seat letter (A, B, C, D, E, F)"
+    )
+    flight = models.ForeignKey(
+        Flight, on_delete=models.CASCADE, related_name="tickets"
+    )
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name="tickets"
+    )
 
     class Meta:
         unique_together = ("flight", "row", "seat")
@@ -274,7 +288,9 @@ class Ticket(models.Model):
     def clean(self):
         airplane = self.flight.airplane
         if self.row < 1 or self.row > airplane.rows:
-            raise ValidationError({"row": f"Row must be between 1 and {airplane.rows}"})
+            raise ValidationError(
+                {"row": f"Row must be between 1 and {airplane.rows}"}
+            )
         if self.seat.upper() not in "ABCDEFGH":
             raise ValidationError({"seat": "Seat must be letter in (A-F)"})
         if self.pk is None:
