@@ -361,7 +361,7 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         if not ("A" <= seat <= chr(ord("A") + max_seats - 1)):
             raise serializers.ValidationError(
                 {
-                    "seat": f"Seat must be from A to {chr(ord("A") + max_seats - 1)}"
+                    "seat": f"Seat must be from A to {chr(ord('A') + max_seats - 1)}"
                 }
             )
         # Check taken place
