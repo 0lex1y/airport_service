@@ -250,9 +250,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     ordering_fields = ("created", "status")
 
     def get_queryset(self):
-        queryset = Order.objects.filter(
-            user=self.request.user
-        ).prefetch_related(
+        queryset = Order.objects.filter(user=self.request.user).prefetch_related(
             "tickets__flight__route__source__city__country",
             "tickets__flight__route__destination__city__country",
             "tickets__flight__airplane",
@@ -279,9 +277,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             serializer = TicketCreateSerializer(data=ticket_data)
             serializer.is_valid(raise_exception=True)
             serializer.save(order=order)
-        return Response(
-            OrderSerializer(order).data, status=status.HTTP_201_CREATED
-        )
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def complete(self, request, *args, **kwargs):
@@ -387,9 +383,7 @@ class FlightViewSet(viewsets.ModelViewSet):
         if source:
             queryset = queryset.filter(route__source__code__iexact=source)
         if destination:
-            queryset = queryset.filter(
-                route__destination__code__iexact=destination
-            )
+            queryset = queryset.filter(route__destination__code__iexact=destination)
         return queryset
 
     def get_serializer_class(self):
