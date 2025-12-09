@@ -54,4 +54,4 @@ python manage.py runserver
 - Pillow (image processing)
 - Docker & docker-compose
 
-[img.png](img.png)
+![Diagram](https://github.com/0lex1y/airport_service/blob/develop/img.png?raw=true)
