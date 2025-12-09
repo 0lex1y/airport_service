@@ -1,0 +1,17 @@
+# Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+.env
+media/
+staticfiles/
+/.idea
+/.venv
+.migrations
+
+# Docker
+.dockerignore
+
+# VSCode
+.vscode/
