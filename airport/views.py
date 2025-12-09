@@ -42,7 +42,8 @@ from airport.serializers import (
     AirportDetailSerializer,
     RouteDetailSerializer,
     FlightDetailSerializer,
-    TicketCreateSerializer, AirplaneImageSerializer,
+    TicketCreateSerializer,
+    AirplaneImageSerializer,
 )
 
 
@@ -69,31 +70,32 @@ class CityViewSet(viewsets.ModelViewSet):
     ordering_fields = ("name", "country__name")
 
 
-@extend_schema(description="Schema searching airports",
-               parameters=[
-                   OpenApiParameter(
-                       "code",
-                       type=OpenApiTypes.STR,
-                       location=OpenApiParameter.QUERY,
-                       description="Filter by airport code",
-                       required=False,
-                   ),
-                   OpenApiParameter(
-                       "city",
-                       type=OpenApiTypes.STR,
-                       location=OpenApiParameter.QUERY,
-                       description="Filter by airport city",
-                       required=False,
-                   ),
-                   OpenApiParameter(
-                       "country",
-                       type=OpenApiTypes.STR,
-                       location=OpenApiParameter.QUERY,
-                       description="Filter by airport country",
-                       required=False,
-                   ),
-               ]
-               )
+@extend_schema(
+    description="Schema searching airports",
+    parameters=[
+        OpenApiParameter(
+            "code",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by airport code",
+            required=False,
+        ),
+        OpenApiParameter(
+            "city",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by airport city",
+            required=False,
+        ),
+        OpenApiParameter(
+            "country",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filter by airport country",
+            required=False,
+        ),
+    ],
+)
 class AirportViewSet(viewsets.ModelViewSet):
     queryset = Airport.objects.select_related("city__country").all()
 
@@ -223,6 +225,7 @@ class AirplaneViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 @extend_schema(
     parameters=[
         OpenApiParameter(
@@ -237,8 +240,13 @@ class AirplaneViewSet(viewsets.ModelViewSet):
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated, ]
-    filter_backends = (filters.OrderingFilter, filters.SearchFilter,)
+    permission_classes = [
+        IsAuthenticated,
+    ]
+    filter_backends = (
+        filters.OrderingFilter,
+        filters.SearchFilter,
+    )
     search_fields = ("id",)
     ordering_fields = ("created", "status")
 
@@ -317,7 +325,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             type=OpenApiTypes.STR,
             description="Filter by flight destination",
             required=False,
-        )
+        ),
     ]
 )
 class FlightViewSet(viewsets.ModelViewSet):
@@ -362,7 +370,7 @@ class FlightViewSet(viewsets.ModelViewSet):
                 distinct=True,
             ),
             available_seats=F("airplane__rows") * F("airplane__seats_in_row")
-                            - F("booked_seats"),
+            - F("booked_seats"),
         ).select_related("airplane", "airplane__airplane_type")
         # Filters
 

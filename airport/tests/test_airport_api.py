@@ -1,7 +1,6 @@
 import datetime
 
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from django.urls import reverse
@@ -10,8 +9,18 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from airport.models import (Airplane, Route, Flight, AirplaneType,
-                            Country, City, Airport, Crew, Order, Ticket)
+from airport.models import (
+    Airplane,
+    Route,
+    Flight,
+    AirplaneType,
+    Country,
+    City,
+    Airport,
+    Crew,
+    Order,
+    Ticket,
+)
 
 ORDER_URL = reverse("airport:order-list")
 FLIGHTS_URL = reverse("airport:flight-list")
@@ -43,23 +52,17 @@ class AuthenticatedOrderAPITest(TestCase):
         self.city = City.objects.create(name="Test City", country=self.country)
 
         self.airport_source = Airport.objects.create(
-            code="AAA",
-            name="Airport A",
-            city=self.city,
-            country=self.country
+            code="AAA", name="Airport A", city=self.city, country=self.country
         )
 
         self.airport_destination = Airport.objects.create(
-            code="BBB",
-            name="Airport B",
-            city=self.city,
-            country=self.country
+            code="BBB", name="Airport B", city=self.city, country=self.country
         )
 
         self.route = Route.objects.create(
             source=self.airport_source,
             destination=self.airport_destination,
-            distance=500
+            distance=500,
         )
 
         self.airplane_type = AirplaneType.objects.create(name="Test Type")
@@ -75,11 +78,10 @@ class AuthenticatedOrderAPITest(TestCase):
             route=self.route,
             airplane=self.airplane,
             departure_time=timezone.now(),
-            arrival_time=timezone.now() + datetime.timedelta(hours=1)
+            arrival_time=timezone.now() + datetime.timedelta(hours=1),
         )
 
         self.flight.crew.add(Crew.objects.create(first_name="Ivan", last_name="Ivanov"))
-
 
     def test_create_order(self):
         self.client.force_authenticate(user=self.user)
@@ -98,12 +100,18 @@ class AuthenticatedOrderAPITest(TestCase):
         payload_2 = {"tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]}
         response = self.client.post(url, payload_2, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("The fields flight, row, seat must make a unique set.", str(response.data))
+        self.assertIn(
+            "The fields flight, row, seat must make a unique set.", str(response.data)
+        )
 
     def test_filter_orders_by_status(self):
         self.client.force_authenticate(user=self.user)
         url = reverse("airport:order-list")
-        self.client.post(url, {"tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]}, format="json")
+        self.client.post(
+            url,
+            {"tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]},
+            format="json",
+        )
         response = self.client.get(url + "?status=pending", format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -111,10 +119,12 @@ class AuthenticatedOrderAPITest(TestCase):
     def test_flight_schema(self):
         self.client.force_authenticate(user=self.user)
         url = reverse("airport:order-list")
-        payload = {"tickets": [
-            {"flight": self.flight.id, "row": 12, "seat": "A"},
-            {"flight": self.flight.id, "row": 12, "seat": "B"}
-        ]}
+        payload = {
+            "tickets": [
+                {"flight": self.flight.id, "row": 12, "seat": "A"},
+                {"flight": self.flight.id, "row": 12, "seat": "B"},
+            ]
+        }
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -128,20 +138,16 @@ class AuthenticatedOrderAPITest(TestCase):
         self.assertIn("12B", data["taken"])
         self.assertIn("layout", data)
 
-
     def test_airport_search(self):
         self.client.force_authenticate(user=self.user)
-        Airport.objects.create(code="KBP", name="Boryspil", city=self.city, country=self.city.country)
-        Airport.objects.create(code="WAW", name="Chopin", city=self.city, country=self.city.country)
+        Airport.objects.create(
+            code="KBP", name="Boryspil", city=self.city, country=self.city.country
+        )
+        Airport.objects.create(
+            code="WAW", name="Chopin", city=self.city, country=self.city.country
+        )
 
         response = self.client.get(reverse("airport:airports-list") + "?code=KBP")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        if isinstance(response.data, list):
-            data = response.data
-        else:
-            data = response.data.get("result", [])
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["code"], "KBP")
-
-
-
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["code"], "KBP")
