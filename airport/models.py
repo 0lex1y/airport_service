@@ -123,7 +123,7 @@ class Airplane(models.Model):
     airplane_type = models.ForeignKey(
         AirplaneType, on_delete=models.PROTECT, related_name="airplanes"
     )
-    image = models.ImageField(upload_to=airplane_image_file_path, null=True)
+    image = models.ImageField(upload_to=airplane_image_file_path, null=True, blank=True)
 
     class Meta:
         unique_together = ("name",)

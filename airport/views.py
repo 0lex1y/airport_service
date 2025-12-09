@@ -1,4 +1,5 @@
 import datetime
+from zoneinfo import available_timezones
 
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -41,7 +42,7 @@ from airport.serializers import (
     AirportDetailSerializer,
     RouteDetailSerializer,
     FlightDetailSerializer,
-    TicketCreateSerializer,
+    TicketCreateSerializer, AirplaneImageSerializer,
 )
 
 
@@ -211,6 +212,7 @@ class AirplaneViewSet(viewsets.ModelViewSet):
         detail=True,
         url_path="upload-image",
         permission_classes=[IsAdminUser],
+        serializer_class=AirplaneImageSerializer,
     )
     def upload_image(self, request, pk=None):
         """Endpoint for uploading image airplane"""
@@ -329,13 +331,14 @@ class FlightViewSet(viewsets.ModelViewSet):
         .all()
     )
 
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], url_path="seats")
     def seats(self, request, pk=None):
         flight = self.get_object()
         airplane = flight.airplane
 
         layout = ["A", "B", "C", None, "D", "E", "F"]
         taken = [f"{t.row}{t.seat}" for t in flight.tickets.all()]
+        available = airplane.capacity - len(taken)
         data = {
             "flight_id": flight.id,
             "airplane": str(airplane),
@@ -343,7 +346,7 @@ class FlightViewSet(viewsets.ModelViewSet):
             "seats_in_row": airplane.seats_in_row,
             "layout": layout,
             "taken": taken,
-            "available": airplane.capacity - len(taken),
+            "available": available,
             "total": airplane.capacity,
         }
 
