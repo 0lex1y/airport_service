@@ -107,13 +107,9 @@ class AirportCreateSerializer(serializers.ModelSerializer):
 # For Route list reading
 class RouteListSerializer(serializers.ModelSerializer):
     source = serializers.CharField(source="source.name", read_only=True)
-    destination = serializers.CharField(
-        source="destination.name", read_only=True
-    )
+    destination = serializers.CharField(source="destination.name", read_only=True)
     source_code = serializers.CharField(read_only=True, source="source.code")
-    destination_code = serializers.CharField(
-        read_only=True, source="destination.code"
-    )
+    destination_code = serializers.CharField(read_only=True, source="destination.code")
 
     class Meta:
         model = Route
@@ -133,9 +129,7 @@ class RouteDetailSerializer(serializers.ModelSerializer):
     source = AirportDetailSerializer(read_only=True)
     destination = AirportDetailSerializer(read_only=True)
     source_code = serializers.CharField(read_only=True, source="source.code")
-    destination_code = serializers.CharField(
-        read_only=True, source="destination.code"
-    )
+    destination_code = serializers.CharField(read_only=True, source="destination.code")
 
     class Meta:
         model = Route
@@ -236,9 +230,7 @@ class AirplaneCreateSerializer(serializers.ModelSerializer):
 
 # For Flight list reading
 class FlightListSerializer(serializers.ModelSerializer):
-    route_city = serializers.CharField(
-        read_only=True, source="route.source.city.name"
-    )
+    route_city = serializers.CharField(read_only=True, source="route.source.city.name")
     destination_city = serializers.CharField(
         read_only=True, source="route.destination.city.name"
     )
@@ -283,9 +275,7 @@ class FlightDetailSerializer(serializers.ModelSerializer):
 # For Flight post
 class FlightCreateSerializer(serializers.ModelSerializer):
     route = serializers.PrimaryKeyRelatedField(queryset=Route.objects.all())
-    airplane = serializers.PrimaryKeyRelatedField(
-        queryset=Airplane.objects.all()
-    )
+    airplane = serializers.PrimaryKeyRelatedField(queryset=Airplane.objects.all())
     crew = serializers.PrimaryKeyRelatedField(
         queryset=Crew.objects.all(), many=True, required=False
     )
@@ -360,17 +350,11 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         max_seats = airplane.seats_in_row
         if not ("A" <= seat <= chr(ord("A") + max_seats - 1)):
             raise serializers.ValidationError(
-                {
-                    "seat": f"Seat must be from A to {chr(ord('A') + max_seats - 1)}"
-                }
+                {"seat": f"Seat must be from A to {chr(ord('A') + max_seats - 1)}"}
             )
         # Check taken place
-        if Ticket.objects.filter(
-            row=row, seat__iexact=seat, flight=flight
-        ).exists():
-            raise serializers.ValidationError(
-                {"seat": "This seat is already taken"}
-            )
+        if Ticket.objects.filter(row=row, seat__iexact=seat, flight=flight).exists():
+            raise serializers.ValidationError({"seat": "This seat is already taken"})
         attrs["seat"] = seat
         return attrs
 

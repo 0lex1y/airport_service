@@ -81,16 +81,12 @@ class AuthenticatedOrderAPITest(TestCase):
             arrival_time=timezone.now() + datetime.timedelta(hours=1),
         )
 
-        self.flight.crew.add(
-            Crew.objects.create(first_name="Ivan", last_name="Ivanov")
-        )
+        self.flight.crew.add(Crew.objects.create(first_name="Ivan", last_name="Ivanov"))
 
     def test_create_order(self):
         self.client.force_authenticate(user=self.user)
         url = reverse("airport:order-list")
-        payload = {
-            "tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]
-        }
+        payload = {"tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]}
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Order.objects.count(), 1)
@@ -99,13 +95,9 @@ class AuthenticatedOrderAPITest(TestCase):
     def test_cannot_take_one_place_twice(self):
         self.client.force_authenticate(user=self.user)
         url = reverse("airport:order-list")
-        payload_1 = {
-            "tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]
-        }
+        payload_1 = {"tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]}
         self.client.post(url, payload_1, format="json")
-        payload_2 = {
-            "tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]
-        }
+        payload_2 = {"tickets": [{"flight": self.flight.id, "row": 28, "seat": "A"}]}
         response = self.client.post(url, payload_2, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
@@ -137,9 +129,7 @@ class AuthenticatedOrderAPITest(TestCase):
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        seats_url = reverse(
-            "airport:flight-seats", kwargs={"pk": self.flight.id}
-        )
+        seats_url = reverse("airport:flight-seats", kwargs={"pk": self.flight.id})
         response = self.client.get(seats_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.data
@@ -164,9 +154,7 @@ class AuthenticatedOrderAPITest(TestCase):
             country=self.city.country,
         )
 
-        response = self.client.get(
-            reverse("airport:airports-list") + "?code=KBP"
-        )
+        response = self.client.get(reverse("airport:airports-list") + "?code=KBP")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["code"], "KBP")
